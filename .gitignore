@@ -20,4 +20,6 @@ obj/
 
 # Data
 data/
-*.json
+
+# Playwright
+.playwright/
