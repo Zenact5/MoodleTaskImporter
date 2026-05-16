@@ -17,10 +17,9 @@ public class AssignmentTransformer
             {
                 var task = new TransformedTask
                 {
-                    Title = $"[{assignment.CourseName}] {cleanedTitle}",
+                    Title = $"{cleanedTitle} - {assignment.CourseName}",
                     Description = GenerateDescription(assignment),
-                    DueDate = assignment.DueDate,
-                    ListName = "Moodle"
+                    DueDate = assignment.DueDate
                 };
 
                 tasks.Add(task);

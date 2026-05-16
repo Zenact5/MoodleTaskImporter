@@ -9,6 +9,7 @@ public class MoodleAssignment
     public DateTime? DueDate { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
+    public bool Registered { get; set; }
 }
 
 public class MoodleData

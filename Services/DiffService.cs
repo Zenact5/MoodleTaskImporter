@@ -4,19 +4,21 @@ namespace moodle_importer.Services;
 
 public class DiffService
 {
-    public List<MoodleAssignment> GetNewAssignments(
+    public List<MoodleAssignment> GetUnregistered(
         List<MoodleAssignment> existing,
         List<MoodleAssignment> current)
     {
-        var existingIds = new HashSet<string>(
-            existing.Select(a => a.Id).Where(id => !string.IsNullOrWhiteSpace(id)));
+        var registeredIds = existing
+            .Where(a => a.Registered && !string.IsNullOrWhiteSpace(a.Id))
+            .Select(a => a.Id)
+            .ToHashSet();
 
-        var newAssignments = current
-            .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !existingIds.Contains(a.Id))
+        var unregistered = current
+            .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !registeredIds.Contains(a.Id))
             .ToList();
 
-        Console.WriteLine($"New assignments: {newAssignments.Count} (out of {current.Count})");
-        return newAssignments;
+        Console.WriteLine($"Unregistered assignments: {unregistered.Count} (out of {current.Count})");
+        return unregistered;
     }
 
     public MoodleData Merge(MoodleData existing, MoodleData current)
@@ -38,7 +40,13 @@ public class DiffService
         foreach (var a in current.Assignments)
         {
             if (!string.IsNullOrWhiteSpace(a.Id))
+            {
+                if (mergedById.TryGetValue(a.Id, out var existingA))
+                {
+                    a.Registered = a.Registered || existingA.Registered;
+                }
                 mergedById[a.Id] = a;
+            }
         }
 
         merged.Assignments = mergedById.Values.ToList();

@@ -6,65 +6,53 @@ namespace moodle_importer.Todo;
 public class TodoClient
 {
     private readonly string _todoPath;
+    private readonly string _listName;
 
-    public TodoClient(string todoPath = @"E:\file\デスクトップ\Projects Folder\.NET\moodle_importer\Todo\todo.exe")
+    public TodoClient(string todoPath, string listName = "Univ")
     {
         _todoPath = todoPath;
+        _listName = listName;
     }
 
-    public async Task CreateTaskAsync(TransformedTask task)
+    public async Task<bool> CreateTaskAsync(TransformedTask task)
     {
         var args = BuildArguments(task);
-        
+
         var result = await ExecuteAsync(args);
-        
+
         if (result.ExitCode != 0)
         {
             Console.WriteLine($"Error creating task: {result.Output}");
-            return;
+            return false;
         }
-        
-        Console.WriteLine($"Created task: {task.Title}");
-    }
 
-    public async Task CreateTasksAsync(List<TransformedTask> tasks)
-    {
-        foreach (var task in tasks)
-        {
-            await CreateTaskAsync(task);
-        }
+        Console.WriteLine($"Created task: {task.Title}");
+        return true;
     }
 
     private string BuildArguments(TransformedTask task)
     {
-        var listName = string.IsNullOrWhiteSpace(task.ListName) ? "Univ" : task.ListName;
-        
-        var args = $"--list \"{listName}\" add \"{task.Title}\"";
-        
+        var list = string.IsNullOrWhiteSpace(task.ListName) ? _listName : task.ListName;
+        var args = $"add item \"{task.Title}\" --list \"{list}\"";
+
         if (task.DueDate.HasValue)
         {
-            args += $" --due \"{task.DueDate.Value:yyyy-MM-ddTHH:mm:ssZ}\"";
+            args += $" --due-date \"{task.DueDate.Value:yyyy-MM-dd}\"";
         }
-        
-        if (!string.IsNullOrWhiteSpace(task.Description))
-        {
-            args += $" --body \"{task.Description}\"";
-        }
-        
+
         return args;
     }
 
     private async Task<ProcessResult> ExecuteAsync(string arguments)
     {
-        var workDir = Path.GetDirectoryName(_todoPath) ?? Directory.GetCurrentDirectory();
-        
         var startInfo = new ProcessStartInfo
         {
             FileName = _todoPath,
             Arguments = arguments,
-            UseShellExecute = true,
+            UseShellExecute = false,
             CreateNoWindow = true,
-            WorkingDirectory = workDir
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
 
         try
@@ -75,12 +63,14 @@ public class TodoClient
                 return new ProcessResult { ExitCode = -1, Output = "Failed to start process" };
             }
 
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
-            
-            return new ProcessResult 
-            { 
-                ExitCode = process.ExitCode, 
-                Output = "" 
+
+            return new ProcessResult
+            {
+                ExitCode = process.ExitCode,
+                Output = (output + error).Trim()
             };
         }
         catch (Exception ex)

@@ -21,7 +21,8 @@ class Program
         var moodleUrl = Environment.GetEnvironmentVariable("MOODLE_URL") ?? "https://moodle41.lms.ehime-u.ac.jp/moodle";
         var moodleUsername = Environment.GetEnvironmentVariable("MOODLE_USERNAME") ?? "";
         var moodlePassword = Environment.GetEnvironmentVariable("MOODLE_PASSWORD") ?? "";
-        var todoCliPath = Environment.GetEnvironmentVariable("TODO_CLI_PATH") ?? @"E:\file\デスクトップ\Projects Folder\.NET\moodle_importer\Todo\todo.exe";
+        var todoCliPath = Environment.GetEnvironmentVariable("TODO_CLI_PATH") ?? @".\Todo\todo.exe";
+        var todoListName = Environment.GetEnvironmentVariable("TODO_LIST_NAME") ?? "Univ";
 
         if (string.IsNullOrWhiteSpace(moodleUsername) || string.IsNullOrWhiteSpace(moodlePassword))
         {
@@ -29,6 +30,12 @@ class Program
             return 1;
         }
 
+        if (!Path.IsPathRooted(todoCliPath))
+        {
+            todoCliPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), todoCliPath));
+        }
+        Console.WriteLine($"Todo CLI: {todoCliPath}");
+        Console.WriteLine($"Todo List: {todoListName}");
         Console.WriteLine($"Moodle URL: {moodleUrl}");
         Console.WriteLine($"Username: {moodleUsername}");
         Console.WriteLine();
@@ -38,6 +45,7 @@ class Program
             var dataPath = Path.Combine(Directory.GetCurrentDirectory(), "data", "moodle_assignments.json");
             var storage = new AssignmentStorage(dataPath);
             var diffService = new DiffService();
+            var todoClient = new TodoClient(todoCliPath, todoListName);
 
             // Step 1: Load existing data
             Console.WriteLine("Step 1: Loading existing data...");
@@ -57,37 +65,42 @@ class Program
                 return 0;
             }
 
-            // Step 3: Diff — find new assignments only
-            Console.WriteLine("\nStep 3: Checking for new assignments...");
-            var newAssignments = diffService.GetNewAssignments(existingAssignments, currentData.Assignments);
+            // Step 3: Diff — unregistered only (by Registered flag)
+            Console.WriteLine("\nStep 3: Checking for unregistered assignments...");
+            var unregistered = diffService.GetUnregistered(existingAssignments, currentData.Assignments);
 
-            if (newAssignments.Count == 0)
+            if (unregistered.Count == 0)
             {
-                Console.WriteLine("No new assignments to register.");
+                Console.WriteLine("No unregistered assignments.");
             }
             else
             {
-                // Step 4: Transform new assignments
                 var newData = new MoodleData
                 {
-                    Assignments = newAssignments,
+                    Assignments = unregistered,
                     Username = currentData.Username,
                     FetchedAt = currentData.FetchedAt
                 };
 
                 var transformer = new AssignmentTransformer();
-                Console.WriteLine("Step 4: Transforming new assignments...");
+                Console.WriteLine("Step 4: Transforming unregistered assignments...");
                 var tasks = transformer.Transform(newData);
 
-                Console.WriteLine($"Created {tasks.Count} new tasks");
+                Console.WriteLine($"Created {tasks.Count} tasks");
 
-                // Step 5: Register in Microsoft Todo
-                var todoClient = new TodoClient(todoCliPath);
+                // Step 5: Register each, mark success
                 Console.WriteLine("Step 5: Creating tasks in Microsoft Todo...");
-                await todoClient.CreateTasksAsync(tasks);
+                for (int i = 0; i < unregistered.Count; i++)
+                {
+                    var success = await todoClient.CreateTaskAsync(tasks[i]);
+                    if (success)
+                    {
+                        unregistered[i].Registered = true;
+                    }
+                }
             }
 
-            // Step 6: Merge and save
+            // Step 6: Merge and save (preserves Registered flags)
             Console.WriteLine("\nStep 6: Saving merged data...");
             var merged = diffService.Merge(
                 existingData ?? new MoodleData(),
