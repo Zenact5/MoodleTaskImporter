@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using dotenv.net;
 using moodle_importer.Models;
 using moodle_importer.Scraper;
+using moodle_importer.Services;
+using moodle_importer.Storage;
 using moodle_importer.Transformer;
 using moodle_importer.Todo;
 
@@ -33,27 +35,64 @@ class Program
 
         try
         {
+            var dataPath = Path.Combine(Directory.GetCurrentDirectory(), "data", "moodle_assignments.json");
+            var storage = new AssignmentStorage(dataPath);
+            var diffService = new DiffService();
+
+            // Step 1: Load existing data
+            Console.WriteLine("Step 1: Loading existing data...");
+            var existingData = await storage.LoadAsync();
+            var existingAssignments = existingData?.Assignments ?? [];
+
+            // Step 2: Scrape
             var scraper = new MoodleScraper(moodleUrl, moodleUsername, moodlePassword);
-            Console.WriteLine("Step 1: Scraping Moodle assignments...");
-            var moodleData = await scraper.ScrapeAsync();
+            Console.WriteLine("\nStep 2: Scraping Moodle calendar...");
+            var currentData = await scraper.ScrapeAsync();
 
-            Console.WriteLine($"\nFound {moodleData.Assignments.Count} assignments");
+            Console.WriteLine($"\nFound {currentData.Assignments.Count} assignments");
 
-            if (moodleData.Assignments.Count == 0)
+            if (currentData.Assignments.Count == 0)
             {
                 Console.WriteLine("No assignments found.");
                 return 0;
             }
 
-            var transformer = new AssignmentTransformer();
-            Console.WriteLine("Step 2: Transforming data...");
-            var tasks = transformer.Transform(moodleData);
+            // Step 3: Diff — find new assignments only
+            Console.WriteLine("\nStep 3: Checking for new assignments...");
+            var newAssignments = diffService.GetNewAssignments(existingAssignments, currentData.Assignments);
 
-            Console.WriteLine($"Created {tasks.Count} tasks");
+            if (newAssignments.Count == 0)
+            {
+                Console.WriteLine("No new assignments to register.");
+            }
+            else
+            {
+                // Step 4: Transform new assignments
+                var newData = new MoodleData
+                {
+                    Assignments = newAssignments,
+                    Username = currentData.Username,
+                    FetchedAt = currentData.FetchedAt
+                };
 
-            var todoClient = new TodoClient(todoCliPath);
-            Console.WriteLine("Step 3: Creating tasks in Microsoft Todo...");
-            await todoClient.CreateTasksAsync(tasks);
+                var transformer = new AssignmentTransformer();
+                Console.WriteLine("Step 4: Transforming new assignments...");
+                var tasks = transformer.Transform(newData);
+
+                Console.WriteLine($"Created {tasks.Count} new tasks");
+
+                // Step 5: Register in Microsoft Todo
+                var todoClient = new TodoClient(todoCliPath);
+                Console.WriteLine("Step 5: Creating tasks in Microsoft Todo...");
+                await todoClient.CreateTasksAsync(tasks);
+            }
+
+            // Step 6: Merge and save
+            Console.WriteLine("\nStep 6: Saving merged data...");
+            var merged = diffService.Merge(
+                existingData ?? new MoodleData(),
+                currentData);
+            await storage.SaveAsync(merged);
 
             Console.WriteLine("\nDone!");
         }

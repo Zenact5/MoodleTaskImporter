@@ -42,26 +42,7 @@ public class MoodleScraper
             playwright.Dispose();
         }
 
-        SaveToJson(data);
         return data;
-    }
-
-    private void SaveToJson(MoodleData data)
-    {
-        var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-
-        var dataDir = Path.Combine(Directory.GetCurrentDirectory(), "data");
-        if (!Directory.Exists(dataDir))
-        {
-            Directory.CreateDirectory(dataDir);
-        }
-
-        var filePath = Path.Combine(dataDir, "moodle_assignments.json");
-        File.WriteAllText(filePath, json);
-        Console.WriteLine($"Saved to: {filePath}");
     }
 
     private async Task LoginMoodleAsync(IPage page)
