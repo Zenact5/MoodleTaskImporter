@@ -14,6 +14,15 @@ class Program
     {
         Logger.IsDetail = args.Contains("--detail");
 
+        var baseDir = GetBaseDirectory();
+        Directory.SetCurrentDirectory(baseDir);
+
+        if (args.Contains("--init"))
+        {
+            await InitAsync();
+            return 0;
+        }
+
         DotEnv.Load();
 
         var moodleUrl = Environment.GetEnvironmentVariable("MOODLE_URL") ?? "https://moodle41.lms.ehime-u.ac.jp/moodle";
@@ -110,4 +119,49 @@ class Program
         return 0;
     }
 
+    static string GetBaseDirectory()
+    {
+        var dir = AppContext.BaseDirectory;
+        var test = dir;
+        while (test != null && !Directory.GetFiles(test, "*.csproj").Any())
+            test = Path.GetDirectoryName(test);
+        return test ?? dir;
+    }
+
+    static async Task InitAsync()
+    {
+        var todoDir = Path.Combine(Directory.GetCurrentDirectory(), "Todo");
+
+        if (!File.Exists(".env"))
+        {
+            var template = @"# Moodle Importer Configuration
+MOODLE_URL=https://moodle41.lms.ehime-u.ac.jp/moodle
+MOODLE_USERNAME=your_username
+MOODLE_PASSWORD=your_password
+TODO_CLI_PATH=.\Todo\todo.exe
+TODO_LIST_NAME=Univ
+";
+            await File.WriteAllTextAsync(".env", template);
+            Logger.Info("Created .env template. Edit it with your credentials.");
+        }
+        else
+        {
+            Logger.Info(".env already exists.");
+        }
+
+        if (!Directory.Exists(todoDir))
+        {
+            Directory.CreateDirectory(todoDir);
+        }
+
+        var todoPath = Path.Combine(todoDir, "todo.exe");
+        if (!File.Exists(todoPath))
+        {
+            Logger.Info($"Place todo.exe in: {todoPath}");
+        }
+        else
+        {
+            Logger.Info("todo.exe found.");
+        }
+    }
 }
