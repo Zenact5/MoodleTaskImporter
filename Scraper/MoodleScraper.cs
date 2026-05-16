@@ -33,13 +33,7 @@ public class MoodleScraper
         {
             Console.WriteLine("Moodle login...");
             await LoginMoodleAsync(page);
-
-            await FetchAssignmentsAsync(page, data);
-
-            if (data.Assignments.Count > 0)
-            {
-                await ParseCalendarUpcomingAsync(page, data);
-            }
+            await ParseCalendarUpcomingAsync(page, data);
         }
         finally
         {
@@ -132,127 +126,6 @@ public class MoodleScraper
         Console.WriteLine($"Final URL: {page.Url}");
     }
 
-    private async Task FetchAssignmentsAsync(IPage page, MoodleData data)
-    {
-        var myUrl = $"{_moodleUrl}/my/";
-        await page.GotoAsync(myUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        await page.WaitForTimeoutAsync(2000);
-
-        Console.WriteLine($"At page: {page.Url}");
-
-        var links = await page.Locator("a[href*='quiz/view.php'], a[href*='assign/view.php']").AllAsync();
-        Console.WriteLine($"Found {links.Count} quiz/assign links");
-
-        var processedIds = new HashSet<string>();
-
-        for (int i = 0; i < links.Count; i++)
-        {
-            try
-            {
-                var link = links[i];
-
-                var href = await link.GetAttributeAsync("href");
-                if (string.IsNullOrWhiteSpace(href)) continue;
-
-                var idParam = HttpUtility.ParseQueryString(new Uri(href).Query)["id"];
-                if (string.IsNullOrWhiteSpace(idParam)) continue;
-                if (processedIds.Contains(idParam)) continue;
-                processedIds.Add(idParam);
-
-                    var title = await link.TextContentAsync() ?? "";
-                title = CleanTitle(title);
-                if (string.IsNullOrWhiteSpace(title)) continue;
-
-                var courseName = await ExtractCourseNameFromDomAsync(link);
-
-                data.Assignments.Add(new MoodleAssignment
-                {
-                    Id = idParam,
-                    Title = title,
-                    CourseName = courseName ?? "",
-                    Status = "pending",
-                    Url = href
-                });
-
-                var courseTag = string.IsNullOrWhiteSpace(courseName) ? "?" : courseName;
-                Console.WriteLine($"  [{courseTag}] {title}  (id={idParam})");
-            }
-            catch { }
-        }
-
-        Console.WriteLine($"Total assignments from dashboard: {data.Assignments.Count}");
-    }
-
-    private async Task<string?> ExtractCourseNameFromDomAsync(ILocator link)
-    {
-        try
-        {
-            return await link.EvaluateAsync<string?>(@"(el) => {
-                const isBadText = (text) => {
-                    if (!text || text.length < 3) return true;
-                    if (/^\d{1,2}:\d{2}/.test(text)) return true;
-                    if (/\d{4}\s*年/.test(text) || /\d{1,2}\s*月\s*\d{1,2}\s*日/.test(text)) return true;
-                    if (/さらに/.test(text) || /件$/.test(text)) return true;
-                    if (/^\d+\s*件/.test(text)) return true;
-                    return false;
-                };
-
-                const eventItem = el.closest('[data-region=""event-list-item""], .event-list-item, .media, .activity-item, li, .list-group-item');
-                if (eventItem) {
-                    const courseEl = eventItem.querySelector('.course-name, .coursename, .text-muted:not(.badge), .text-white, small:not(.badge)');
-                    if (courseEl && courseEl.textContent) {
-                        const text = courseEl.textContent.trim();
-                        if (text && !isBadText(text)) return text;
-                    }
-                    const cells = eventItem.querySelectorAll('div, span');
-                    for (const cell of cells) {
-                        if (cell.querySelector('a')) continue;
-                        const t = (cell.textContent || '').trim();
-                        if (t && t.length > 3 && !isBadText(t) && !t.includes('Due') && !t.includes('期限') && !t.includes('得点') && !t.includes('提出')) {
-                            return t;
-                        }
-                    }
-                }
-
-                const card = el.closest('.card, .dashboard-card, [data-course-id], .course-card');
-                if (card) {
-                    const selectors = [
-                        '.coursename a', '.coursename',
-                        '.card-header h3', '.card-header a',
-                        '.course-title', '.course_title',
-                        'h3.coursename', 'h2.coursename',
-                        '.card-body > h3', '.card-body > h2'
-                    ];
-                    for (const sel of selectors) {
-                        const heading = card.querySelector(sel);
-                        if (heading && heading.textContent) {
-                            const text = heading.textContent.trim();
-                            if (text && text.length > 1 && !isBadText(text)) return text;
-                        }
-                    }
-                }
-
-                let prev = el.parentElement;
-                for (let i = 0; i < 8 && prev; i++) {
-                    const headings = prev.querySelectorAll('h2, h3, h4, h5, h6, strong, .sectionname, .section-title');
-                    for (const h of headings) {
-                        if (h.textContent) {
-                            const text = h.textContent.trim();
-                            if (text && text.length > 2 && !isBadText(text)) return text;
-                        }
-                    }
-                    prev = prev.parentElement;
-                }
-
-                return null;
-            }");
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     private async Task ParseCalendarUpcomingAsync(IPage page, MoodleData data)
     {
         var calendarUrl = $"{_moodleUrl}/calendar/view.php?view=upcoming";
@@ -266,7 +139,7 @@ public class MoodleScraper
             var rawJson = await page.EvaluateAsync<string>(@"() => {
                 const containers = document.querySelectorAll('.event');
                 const events = [];
-                const seen = new Set();
+                const seenIds = new Set();
                 containers.forEach(el => {
                     const link = el.querySelector('a[href*=""mod/quiz/view.php""], a[href*=""mod/assign/view.php""]');
                     if (!link) return;
@@ -274,10 +147,14 @@ public class MoodleScraper
                     const idMatch = href.match(/id=(\d+)/);
                     if (!idMatch) return;
                     const id = idMatch[1];
-                    if (seen.has(id)) return;
-                    seen.add(id);
+                    if (seenIds.has(id)) return;
+                    seenIds.add(id);
+
+                    const titleEl = el.querySelector('.card-title, .event-title, h5, h3');
+                    const title = titleEl ? titleEl.textContent.replace(/\s+/g, ' ').trim() : '';
+
                     const allText = el.textContent.replace(/\s+/g, ' ').trim();
-                    events.push([id, allText]);
+                    events.push([id, title, allText, href]);
                 });
                 return JSON.stringify(events);
             }");
@@ -288,33 +165,43 @@ public class MoodleScraper
 
             foreach (var pair in rawEvents)
             {
-                if (pair.Count < 2) continue;
+                if (pair.Count < 4) continue;
                 var id = pair[0];
-                var allText = pair[1];
+                var title = pair[1];
+                var allText = pair[2];
+                var href = pair[3];
 
-                var assignment = data.Assignments.FirstOrDefault(a => a.Id == id);
-                if (assignment == null)
+                if (string.IsNullOrWhiteSpace(title))
                 {
-                    Console.WriteLine($"  Calendar event id={id} (no matching dashboard assignment)");
-                    continue;
+                    var dateMatch = Regex.Match(allText, @"\d{4}\s*年");
+                    if (dateMatch.Success)
+                        title = allText[..dateMatch.Index].Trim();
                 }
 
-                Console.WriteLine($"  Calendar event id={id}: '{assignment.Title}'");
+                title = CleanCalendarTitle(title);
+                if (string.IsNullOrWhiteSpace(title)) continue;
 
                 var dueDate = ParseDateText(allText);
-                if (dueDate.HasValue)
-                {
-                    assignment.DueDate = dueDate.Value;
-                    Console.WriteLine($"  -> DueDate: {dueDate.Value:yyyy/MM/dd HH:mm}");
-                }
-
                 var courseName = ParseCourseNameFromCalendarText(allText);
-                if (!string.IsNullOrWhiteSpace(courseName))
+
+                data.Assignments.Add(new MoodleAssignment
                 {
-                    assignment.CourseName = courseName;
-                    Console.WriteLine($"  -> CourseName: {courseName}");
-                }
+                    Id = id,
+                    Title = title,
+                    CourseName = courseName ?? "",
+                    DueDate = dueDate,
+                    Url = href,
+                    Status = "pending"
+                });
+
+                Console.WriteLine($"  [{id}] {title}");
+                if (dueDate.HasValue)
+                    Console.WriteLine($"    Due: {dueDate.Value:yyyy/MM/dd HH:mm}");
+                if (!string.IsNullOrWhiteSpace(courseName))
+                    Console.WriteLine($"    Course: {courseName}");
             }
+
+            Console.WriteLine($"Total assignments: {data.Assignments.Count}");
         }
         catch (Exception ex)
         {
@@ -322,9 +209,16 @@ public class MoodleScraper
         }
     }
 
+    private static string CleanCalendarTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "";
+        title = Regex.Replace(title, @"\s*の受験可能期間の(?:終了|開始)$", "");
+        title = Regex.Replace(title, @"\s*(?:opens|closes)$", "", RegexOptions.IgnoreCase);
+        return title.Trim();
+    }
+
     private string? ParseCourseNameFromCalendarText(string text)
     {
-        // Course name format: "2026-Q1-コース名-教員名" or "2026-前-English Foundation..."
         var match = Regex.Match(text, @"(20\d{2}[-‾]\S+(?:\s+\S+)*)\s+(?:活動に移動|問題を受験|提出課題)");
         if (match.Success)
         {
@@ -349,7 +243,6 @@ public class MoodleScraper
         var result = TryParseDateExact(text);
         if (result.HasValue) return result;
 
-        // Japanese: 2026年05月18日(月) 23:59 or 2026年05月18日, 00:00 or 2026年05月18日 08:00
         var jaFull = Regex.Match(text, @"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日\s*(?:[\(（][^)）]*[\)）])?\s*,?\s*(\d{1,2})[:：](\d{2})");
         if (jaFull.Success)
         {
@@ -361,7 +254,6 @@ public class MoodleScraper
                 int.Parse(jaFull.Groups[5].Value), 0);
         }
 
-        // Japanese: 2026年5月18日 (date only) -> set to 23:59
         var jaDateOnly = Regex.Match(text, @"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日");
         if (jaDateOnly.Success)
         {
@@ -427,11 +319,5 @@ public class MoodleScraper
             return fallback;
 
         return null;
-    }
-
-    private static string NormalizeForComparison(string s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return "";
-        return s.Trim().ToLowerInvariant();
     }
 }
