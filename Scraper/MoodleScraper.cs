@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.Playwright;
 using moodle_importer.Models;
 using moodle_importer.Services;
@@ -208,12 +207,6 @@ public class MoodleScraper
             return string.IsNullOrWhiteSpace(name) ? null : name;
         }
         return null;
-    }
-
-    private string CleanTitle(string title)
-    {
-        if (string.IsNullOrWhiteSpace(title)) return "";
-        return title.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\u00A0", " ").Trim();
     }
 
     private DateTime? ParseDateText(string text)

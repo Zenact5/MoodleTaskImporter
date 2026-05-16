@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using dotenv.net;
 using moodle_importer.Models;
 using moodle_importer.Scraper;
@@ -111,12 +110,4 @@ class Program
         return 0;
     }
 
-    static IConfiguration BuildConfiguration()
-    {
-        return new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("Config/appsettings.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-    }
 }
