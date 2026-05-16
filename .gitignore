@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# NuGet
+*.nupkg
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Env
+.env
+*.local
+
+# Data
+data/
+*.json

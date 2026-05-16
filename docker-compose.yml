@@ -1,0 +1,17 @@
+services:
+  moodle-importer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MOODLE_URL=${MOODLE_URL}
+      - MOODLE_USERNAME=${MOODLE_USERNAME}
+      - MOODLE_PASSWORD=${MOODLE_PASSWORD}
+      - MS_USERNAME=${MS_USERNAME}
+      - MS_PASSWORD=${MS_PASSWORD}
+      - TODO_CLI_PATH=${TODO_CLI_PATH}
+    command: dotnet moodle-importer.dll
