@@ -13,8 +13,7 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
-        Console.WriteLine("Moodle to Microsoft Todo Importer");
-        Console.WriteLine("====================================");
+        Logger.IsDetail = args.Contains("--detail");
 
         DotEnv.Load();
 
@@ -26,7 +25,7 @@ class Program
 
         if (string.IsNullOrWhiteSpace(moodleUsername) || string.IsNullOrWhiteSpace(moodlePassword))
         {
-            Console.WriteLine("Error: MOODLE_USERNAME and MOODLE_PASSWORD must be set in .env");
+            Logger.Error("Error: MOODLE_USERNAME and MOODLE_PASSWORD must be set in .env");
             return 1;
         }
 
@@ -34,11 +33,11 @@ class Program
         {
             todoCliPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), todoCliPath));
         }
-        Console.WriteLine($"Todo CLI: {todoCliPath}");
-        Console.WriteLine($"Todo List: {todoListName}");
-        Console.WriteLine($"Moodle URL: {moodleUrl}");
-        Console.WriteLine($"Username: {moodleUsername}");
-        Console.WriteLine();
+
+        Logger.Detail($"Todo CLI: {todoCliPath}");
+        Logger.Detail($"Todo List: {todoListName}");
+        Logger.Detail($"Moodle URL: {moodleUrl}");
+        Logger.Detail($"Username: {moodleUsername}");
 
         try
         {
@@ -47,33 +46,27 @@ class Program
             var diffService = new DiffService();
             var todoClient = new TodoClient(todoCliPath, todoListName);
 
-            // Step 1: Load existing data
-            Console.WriteLine("Step 1: Loading existing data...");
+            Logger.Detail("Loading existing data...");
             var existingData = await storage.LoadAsync();
             var existingAssignments = existingData?.Assignments ?? [];
 
-            // Step 2: Scrape
+            Logger.Info("Scraping Moodle calendar...");
             var scraper = new MoodleScraper(moodleUrl, moodleUsername, moodlePassword);
-            Console.WriteLine("\nStep 2: Scraping Moodle calendar...");
             var currentData = await scraper.ScrapeAsync();
 
-            Console.WriteLine($"\nFound {currentData.Assignments.Count} assignments");
+            Logger.Detail($"Found {currentData.Assignments.Count} assignments");
 
             if (currentData.Assignments.Count == 0)
             {
-                Console.WriteLine("No assignments found.");
+                Logger.Info("No assignments found.");
                 return 0;
             }
 
-            // Step 3: Diff — unregistered only (by Registered flag)
-            Console.WriteLine("\nStep 3: Checking for unregistered assignments...");
+            Logger.Detail("Checking for unregistered assignments...");
             var unregistered = diffService.GetUnregistered(existingAssignments, currentData.Assignments);
+            var newCount = 0;
 
-            if (unregistered.Count == 0)
-            {
-                Console.WriteLine("No unregistered assignments.");
-            }
-            else
+            if (unregistered.Count > 0)
             {
                 var newData = new MoodleData
                 {
@@ -83,36 +76,35 @@ class Program
                 };
 
                 var transformer = new AssignmentTransformer();
-                Console.WriteLine("Step 4: Transforming unregistered assignments...");
+                Logger.Detail("Transforming unregistered assignments...");
                 var tasks = transformer.Transform(newData);
 
-                Console.WriteLine($"Created {tasks.Count} tasks");
+                Logger.Detail($"Created {tasks.Count} tasks");
 
-                // Step 5: Register each, mark success
-                Console.WriteLine("Step 5: Creating tasks in Microsoft Todo...");
+                Logger.Detail("Creating tasks in Microsoft Todo...");
                 for (int i = 0; i < unregistered.Count; i++)
                 {
                     var success = await todoClient.CreateTaskAsync(tasks[i]);
                     if (success)
                     {
                         unregistered[i].Registered = true;
+                        newCount++;
                     }
                 }
             }
 
-            // Step 6: Merge and save (preserves Registered flags)
-            Console.WriteLine("\nStep 6: Saving merged data...");
+            Logger.Detail("Saving merged data...");
             var merged = diffService.Merge(
                 existingData ?? new MoodleData(),
                 currentData);
             await storage.SaveAsync(merged);
 
-            Console.WriteLine("\nDone!");
+            Logger.Info($"Done! ({merged.Assignments.Count} assignments, {newCount} new)");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            Logger.Error($"Error: {ex.Message}");
+            Logger.Detail(ex.StackTrace ?? "");
             return 1;
         }
 

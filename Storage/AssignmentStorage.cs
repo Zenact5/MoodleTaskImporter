@@ -1,5 +1,6 @@
 using System.Text.Json;
 using moodle_importer.Models;
+using moodle_importer.Services;
 
 namespace moodle_importer.Storage;
 
@@ -16,13 +17,13 @@ public class AssignmentStorage
     {
         if (!File.Exists(_filePath))
         {
-            Console.WriteLine("No existing data found.");
+            Logger.Detail("No existing data found.");
             return null;
         }
 
         var json = await File.ReadAllTextAsync(_filePath);
         var data = JsonSerializer.Deserialize<MoodleData>(json);
-        Console.WriteLine($"Loaded {data?.Assignments.Count ?? 0} existing assignments");
+        Logger.Detail($"Loaded {data?.Assignments.Count ?? 0} existing assignments");
         return data;
     }
 
@@ -40,6 +41,6 @@ public class AssignmentStorage
         });
 
         await File.WriteAllTextAsync(_filePath, json);
-        Console.WriteLine($"Saved {data.Assignments.Count} assignments to {_filePath}");
+        Logger.Detail($"Saved {data.Assignments.Count} assignments to {_filePath}");
     }
 }

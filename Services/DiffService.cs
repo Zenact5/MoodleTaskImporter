@@ -17,7 +17,7 @@ public class DiffService
             .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !registeredIds.Contains(a.Id))
             .ToList();
 
-        Console.WriteLine($"Unregistered assignments: {unregistered.Count} (out of {current.Count})");
+        Logger.Detail($"Unregistered assignments: {unregistered.Count} (out of {current.Count})");
         return unregistered;
     }
 

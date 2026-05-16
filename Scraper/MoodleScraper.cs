@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.Playwright;
 using moodle_importer.Models;
+using moodle_importer.Services;
 
 namespace moodle_importer.Scraper;
 
@@ -31,7 +32,7 @@ public class MoodleScraper
 
         try
         {
-            Console.WriteLine("Moodle login...");
+            Logger.Detail("Moodle login...");
             await LoginMoodleAsync(page);
             await ParseCalendarUpcomingAsync(page, data);
         }
@@ -52,59 +53,59 @@ public class MoodleScraper
         await page.WaitForTimeoutAsync(3000);
 
         var html = await page.ContentAsync();
-        Console.WriteLine($"Page has 'Shibboleth': {html.Contains("Shibboleth")}");
+        Logger.Detail($"Page has 'Shibboleth': {html.Contains("Shibboleth")}");
 
         var csLink = page.Locator("a[href*='Shibboleth'], a[href*='shibboleth']");
         if (await csLink.CountAsync() > 0)
         {
             var href = await csLink.First.GetAttributeAsync("href");
-            Console.WriteLine($"Clicking: {href}");
+            Logger.Detail($"Clicking: {href}");
             await csLink.First.ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
             await page.WaitForTimeoutAsync(10000);
         }
 
-        Console.WriteLine($"After click URL: {page.Url}");
+        Logger.Detail($"After click URL: {page.Url}");
 
         if (page.Url.Contains("adfs") || page.Url.Contains("idp"))
         {
-            Console.WriteLine("On ADFS/IdP - entering credentials...");
+            Logger.Detail("On ADFS/IdP - entering credentials...");
             await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
 
             var userInput = page.Locator("input[name='UserName'], input[name='username'], #userNameInput, input[type='text']");
             var passInput = page.Locator("input[name='Password'], input[name='password'], #passwordInput, input[type='password']");
 
-            Console.WriteLine($"Username fields: {await userInput.CountAsync()}, Password fields: {await passInput.CountAsync()}");
+            Logger.Detail($"Username fields: {await userInput.CountAsync()}, Password fields: {await passInput.CountAsync()}");
 
             if (await userInput.CountAsync() > 0)
             {
                 await userInput.First.FillAsync(_username);
-                Console.WriteLine("Filled username");
+                Logger.Detail("Filled username");
             }
             if (await passInput.CountAsync() > 0)
             {
                 await passInput.First.FillAsync(_password);
-                Console.WriteLine("Filled password");
+                Logger.Detail("Filled password");
             }
 
             await page.WaitForTimeoutAsync(500);
 
             await page.EvaluateAsync("document.querySelector('form')?.submit()");
-            Console.WriteLine("Submitted form via JS");
+            Logger.Detail("Submitted form via JS");
 
             for (int i = 0; i < 15; i++)
             {
                 await page.WaitForTimeoutAsync(2000);
                 if (page.Url.Contains("moodle") && !page.Url.Contains("login"))
                 {
-                    Console.WriteLine("Successfully logged in to Moodle!");
+                    Logger.Detail("Successfully logged in to Moodle!");
                     break;
                 }
-                Console.WriteLine($"Waiting... URL: {page.Url}");
+                Logger.Detail($"Waiting... URL: {page.Url}");
             }
         }
 
-        Console.WriteLine($"Final URL: {page.Url}");
+        Logger.Detail($"Final URL: {page.Url}");
     }
 
     private async Task ParseCalendarUpcomingAsync(IPage page, MoodleData data)
@@ -113,7 +114,7 @@ public class MoodleScraper
         await page.GotoAsync(calendarUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
         await page.WaitForTimeoutAsync(3000);
 
-        Console.WriteLine($"Calendar page URL: {page.Url}");
+        Logger.Detail($"Calendar page URL: {page.Url}");
 
         try
         {
@@ -142,7 +143,7 @@ public class MoodleScraper
 
             var rawEvents = JsonSerializer.Deserialize<List<List<string>>>(rawJson ?? "[]") ?? [];
 
-            Console.WriteLine($"Found {rawEvents.Count} calendar events");
+            Logger.Detail($"Found {rawEvents.Count} calendar events");
 
             foreach (var pair in rawEvents)
             {
@@ -175,18 +176,18 @@ public class MoodleScraper
                     Status = "pending"
                 });
 
-                Console.WriteLine($"  [{id}] {title}");
+                Logger.Detail($"  [{id}] {title}");
                 if (dueDate.HasValue)
-                    Console.WriteLine($"    Due: {dueDate.Value:yyyy/MM/dd HH:mm}");
+                    Logger.Detail($"    Due: {dueDate.Value:yyyy/MM/dd HH:mm}");
                 if (!string.IsNullOrWhiteSpace(courseName))
-                    Console.WriteLine($"    Course: {courseName}");
+                    Logger.Detail($"    Course: {courseName}");
             }
 
-            Console.WriteLine($"Total assignments: {data.Assignments.Count}");
+            Logger.Detail($"Total assignments: {data.Assignments.Count}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing calendar: {ex.Message}");
+            Logger.Error($"Error parsing calendar: {ex.Message}");
         }
     }
 

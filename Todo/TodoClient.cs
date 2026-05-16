@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using moodle_importer.Models;
+using moodle_importer.Services;
 
 namespace moodle_importer.Todo;
 
@@ -22,11 +23,11 @@ public class TodoClient
 
         if (result.ExitCode != 0)
         {
-            Console.WriteLine($"Error creating task: {result.Output}");
+            Logger.Error($"Error creating task: {result.Output}");
             return false;
         }
 
-        Console.WriteLine($"Created task: {task.Title}");
+        Logger.Detail($"Created task: {task.Title}");
         return true;
     }
 
