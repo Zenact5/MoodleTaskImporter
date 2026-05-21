@@ -50,7 +50,7 @@ public class AssignmentTransformer
     {
         var lower = title.ToLower();
         
-        if (lower.Contains("開始") || lower.Contains("終了") || lower.Contains("opens"))
+        if (lower.Contains("開始") || lower.Contains("opens"))
             return false;
             
         return true;

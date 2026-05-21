@@ -34,7 +34,8 @@ public class TodoClient
     private string BuildArguments(TransformedTask task)
     {
         var list = string.IsNullOrWhiteSpace(task.ListName) ? _listName : task.ListName;
-        var args = $"add item \"{task.Title}\" --list \"{list}\"";
+        var safeTitle = task.Title.Replace("\"", "\\\"");
+        var args = $"add item \"{safeTitle}\" --list \"{list}\"";
 
         if (task.DueDate.HasValue)
         {

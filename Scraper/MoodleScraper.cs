@@ -193,8 +193,9 @@ public class MoodleScraper
     private static string CleanCalendarTitle(string title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
-        title = Regex.Replace(title, @"\s*の受験可能期間の(?:終了|開始)$", "");
-        title = Regex.Replace(title, @"\s*(?:opens|closes)$", "", RegexOptions.IgnoreCase);
+        if (Regex.IsMatch(title, @"\s*の受験可能期間の開始$")) return "";
+        title = Regex.Replace(title, @"\s*の受験可能期間の終了$", "");
+        title = Regex.Replace(title, @"\s*\(?(?:opens|closes)\)?\s*$", "", RegexOptions.IgnoreCase);
         return title.Trim();
     }
 
