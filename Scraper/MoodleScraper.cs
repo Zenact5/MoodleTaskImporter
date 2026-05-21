@@ -159,8 +159,13 @@ public class MoodleScraper
                         title = allText[..dateMatch.Index].Trim();
                 }
 
+                Logger.Detail($"Raw title: [{title}]");
                 title = CleanCalendarTitle(title);
-                if (string.IsNullOrWhiteSpace(title)) continue;
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    Logger.Detail($"  Skipped (cleaned title is empty)");
+                    continue;
+                }
 
                 var dueDate = ParseDateText(allText);
                 var courseName = ParseCourseNameFromCalendarText(allText);
@@ -194,8 +199,9 @@ public class MoodleScraper
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
         if (Regex.IsMatch(title, @"\s*の受験可能期間の開始$")) return "";
+        if (Regex.IsMatch(title, @"\s*\(?opens\)?\s*$", RegexOptions.IgnoreCase)) return "";
         title = Regex.Replace(title, @"\s*の受験可能期間の終了$", "");
-        title = Regex.Replace(title, @"\s*\(?(?:opens|closes)\)?\s*$", "", RegexOptions.IgnoreCase);
+        title = Regex.Replace(title, @"\s*\(?closes\)?\s*$", "", RegexOptions.IgnoreCase);
         return title.Trim();
     }
 
