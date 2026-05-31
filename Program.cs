@@ -23,7 +23,9 @@ class Program
             return 0;
         }
 
-        DotEnv.Load();
+        DotEnv.Load(new DotEnvOptions()
+            .WithEnvFiles(Path.Combine(baseDir, ".env"))
+            .WithOverwriteExistingVars());
 
         var moodleUrl = Environment.GetEnvironmentVariable("MOODLE_URL") ?? "https://moodle41.lms.ehime-u.ac.jp/moodle";
         var moodleUsername = Environment.GetEnvironmentVariable("MOODLE_USERNAME") ?? "";
