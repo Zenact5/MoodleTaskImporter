@@ -1,6 +1,8 @@
 # Moodle Importer
 
-Scrapes upcoming assignments from Moodle calendar and registers them in Microsoft Todo via [todo.exe](https://github.com/gsmnew/todo-cli).
+[日本語版](./README_ja.md)
+
+Scrapes upcoming assignments from Moodle calendar and registers them in Microsoft Todo via [todo.exe](https://github.com/Zenact5/todo-cli/releases).
 
 ## Requirements
 
@@ -52,8 +54,6 @@ Trigger: Daily at 8:00 AM
 Action: Start a program
 Program: path\to\moodle-importer.exe
 ```
-
-No console window will appear (WinExe).
 
 ## Build from Source
 
