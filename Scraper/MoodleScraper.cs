@@ -222,6 +222,22 @@ public class MoodleScraper
 
         text = text.Trim();
 
+        var relativeMatch = Regex.Match(text, @"(今日|明日),?\s*(\d{1,2}):(\d{2})");
+        if (relativeMatch.Success)
+        {
+            var baseDate = relativeMatch.Groups[1].Value == "今日" ? DateTime.Today : DateTime.Today.AddDays(1);
+            var hour = int.Parse(relativeMatch.Groups[2].Value);
+            var minute = int.Parse(relativeMatch.Groups[3].Value);
+            return new DateTime(baseDate.Year, baseDate.Month, baseDate.Day, hour, minute, 0);
+        }
+
+        var relativeWordOnly = Regex.Match(text, @"(今日|明日)");
+        if (relativeWordOnly.Success)
+        {
+            var baseDate = relativeWordOnly.Groups[1].Value == "今日" ? DateTime.Today : DateTime.Today.AddDays(1);
+            return new DateTime(baseDate.Year, baseDate.Month, baseDate.Day, 23, 59, 0);
+        }
+
         var result = TryParseDateExact(text);
         if (result.HasValue) return result;
 
