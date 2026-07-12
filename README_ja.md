@@ -83,3 +83,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 2. `moodle-importer.exe --init` を実行して `.env` を生成
 3. `.env` に認証情報を入力
 4. `moodle-importer.exe` を実行（タスクスケジューラで自動化が可能）
+
+## ライセンス
+
+[MIT](./LICENSE)
