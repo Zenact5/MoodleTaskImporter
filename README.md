@@ -62,7 +62,7 @@ git clone <repo-url>
 cd moodle-importer
 dotnet restore
 playwright install chromium
-dotnet publish -c Release -r win-x64 --self-contained true
+dotnet publish -c Release -r win-x64
 ```
 
 The output will be in `bin/Release/net8.0/win-x64/publish/`.
