@@ -62,7 +62,7 @@ git clone <repo-url>
 cd moodle-importer
 dotnet restore
 playwright install chromium
-dotnet publish -c Release -r win-x64 
+dotnet publish -c Release -r win-x64
 ```
 
 The output will be in `bin/Release/net8.0/win-x64/publish/`.
@@ -82,3 +82,7 @@ Users then:
 2. Run `moodle-importer.exe --init` to generate `.env`
 3. Edit `.env` with their credentials
 4. Run `moodle-importer.exe` (via Task Scheduler for automation)
+
+## License
+
+[MIT](./LICENSE)

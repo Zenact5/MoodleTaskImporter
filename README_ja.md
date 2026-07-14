@@ -63,7 +63,7 @@ git clone <repo-url>
 cd moodle-importer
 dotnet restore
 playwright install chromium
-dotnet publish -c Release -r win-x64 --self-contained true
+dotnet publish -c Release -r win-x64
 ```
 
 出力は `bin/Release/net8.0/win-x64/publish/` に生成されます。
@@ -83,3 +83,7 @@ dotnet publish -c Release -r win-x64 --self-contained true
 2. `moodle-importer.exe --init` を実行して `.env` を生成
 3. `.env` に認証情報を入力
 4. `moodle-importer.exe` を実行（タスクスケジューラで自動化が可能）
+
+## ライセンス
+
+[MIT](./LICENSE)
