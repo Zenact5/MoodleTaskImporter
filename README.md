@@ -40,13 +40,27 @@ moodle-importer.exe
 | `MOODLE_PASSWORD` | — | Moodle login password |
 | `TODO_CLI_PATH` | `.\Todo\todo.exe` | Path to todo.exe |
 | `TODO_LIST_NAME` | `Univ` | Target Microsoft Todo list name |
+| `DUE_CUTOFF_HOUR` | `4` | Due times before this hour (0-23) are registered as the previous day (e.g. 9/27 0:00 → 9/26). `0` disables normalization |
+| `TITLE_WHITELIST` | (empty) | Comma-separated; if not empty, only assignments whose title contains any entry are registered (case-insensitive) |
+| `TITLE_BLACKLIST` | `開始,opens` | Comma-separated; assignments whose title contains any entry are skipped (case-insensitive). Set to an empty value to disable |
+
+### Config versioning
+
+`.env` carries a `# config-version: N` comment. When new variables are added in a
+future release, run `moodle-importer.exe --init`:
+
+- Missing variables are appended with their default values (your existing values are never touched)
+- Deprecated variables are commented out with a note
+- A backup of the previous file is written to `.env.bak`
+
+On a normal run with an outdated `.env`, a warning is shown but nothing is modified.
 
 ## Flags
 
 | Flag | Description |
 |---|---|
 | `--detail` | Show verbose logs (login details, per-task output, etc.) |
-| `--init` | Generate .env template and prepare directory structure |
+| `--init` | Generate .env template, or migrate an existing .env to the latest config version, and prepare directory structure |
 
 ## Task Scheduler (Windows)
 
