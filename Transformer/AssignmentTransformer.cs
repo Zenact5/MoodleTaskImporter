@@ -4,25 +4,27 @@ namespace moodle_importer.Transformer;
 
 public class AssignmentTransformer
 {
-    public List<TransformedTask> Transform(MoodleData moodleData)
+    public List<(MoodleAssignment Assignment, TransformedTask Task)> Transform(MoodleData moodleData)
     {
-        var tasks = new List<TransformedTask>();
+        var tasks = new List<(MoodleAssignment, TransformedTask)>();
 
         foreach (var assignment in moodleData.Assignments)
         {
             var cleanedTitle = CleanTitle(assignment.Title);
             if (string.IsNullOrWhiteSpace(cleanedTitle)) continue;
-            
+
             if (IsValidAssignment(cleanedTitle))
             {
                 var task = new TransformedTask
                 {
-                    Title = $"{cleanedTitle} - {assignment.CourseName}",
+                    Title = string.IsNullOrWhiteSpace(assignment.CourseName)
+                        ? cleanedTitle
+                        : $"{cleanedTitle} - {assignment.CourseName}",
                     Description = GenerateDescription(assignment),
                     DueDate = assignment.DueDate
                 };
 
-                tasks.Add(task);
+                tasks.Add((assignment, task));
             }
         }
 

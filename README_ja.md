@@ -7,7 +7,7 @@ Moodleカレンダーから今後の課題を取得し、[todo.exe](https://gith
 
 - [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [todo.exe](https://github.com/Zenact5/todo-cli/releases)
-- Chromium（初回実行時にPlaywrightが自動インストール）
+- Chromium（自動インストールされません。下記のステップ3で一度だけインストールが必要です）
 
 ## クイックスタート
 
@@ -18,13 +18,16 @@ Moodleカレンダーから今後の課題を取得し、[todo.exe](https://gith
 # 任意のshellで以下のコマンドを実行
 moodle-importer.exe --init
 
-# 3. .envに認証情報を入力
+# 3. Chromiumをインストール（初回のみ、PowerShellが必要）
+powershell -ExecutionPolicy Bypass -File .\playwright.ps1 install chromium
+
+# 4. .envに認証情報を入力
 #    MOODLE_USERNAME=your_username
 #    MOODLE_PASSWORD=your_password
 
-# 4. todo.exeをTodo\サブフォルダに配置（または.envでTODO_CLI_PATHを設定）
+# 5. todo.exeをTodo\サブフォルダに配置（または.envでTODO_CLI_PATHを設定）
 
-# 5. 実行
+# 6. 実行
 moodle-importer.exe
 ```
 
@@ -61,8 +64,9 @@ moodle-importer.exe
 ```sh
 git clone <repo-url>
 cd moodle-importer
-dotnet restore
-playwright install chromium
+dotnet build
+# Chromiumが %USERPROFILE%\AppData\Local\ms-playwright にインストールされる（Debug/Releaseで共有）
+powershell -ExecutionPolicy Bypass -File bin\Debug\net8.0\playwright.ps1 install chromium
 dotnet publish -c Release -r win-x64
 ```
 
@@ -78,11 +82,14 @@ dotnet publish -c Release -r win-x64
 4. リリース内の `Todo\` サブフォルダに `todo.exe` を配置
 5. すべてをzipにまとめる
 
+zipには `playwright.ps1` と `.playwright\` フォルダを含めてください（利用者のChromiumインストールに必要）。
+
 利用者の手順：
 1. zipを展開
-2. `moodle-importer.exe --init` を実行して `.env` を生成
-3. `.env` に認証情報を入力
-4. `moodle-importer.exe` を実行（タスクスケジューラで自動化が可能）
+2. `powershell -ExecutionPolicy Bypass -File .\playwright.ps1 install chromium` を実行（初回のみ）
+3. `moodle-importer.exe --init` を実行して `.env` を生成
+4. `.env` に認証情報を入力
+5. `moodle-importer.exe` を実行（タスクスケジューラで自動化が可能）
 
 ## ライセンス
 

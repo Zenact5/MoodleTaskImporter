@@ -44,6 +44,12 @@ class Program
             todoCliPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), todoCliPath));
         }
 
+        if (!File.Exists(todoCliPath))
+        {
+            Logger.Error($"Error: todo.exe not found at '{todoCliPath}'. Place it in the Todo\\ folder or set TODO_CLI_PATH in .env");
+            return 1;
+        }
+
         Logger.Detail($"Todo CLI: {todoCliPath}");
         Logger.Detail($"Todo List: {todoListName}");
         Logger.Detail($"Moodle URL: {moodleUrl}");
@@ -92,12 +98,12 @@ class Program
                 Logger.Detail($"Created {tasks.Count} tasks");
 
                 Logger.Detail("Creating tasks in Microsoft Todo...");
-                for (int i = 0; i < unregistered.Count; i++)
+                foreach (var (assignment, task) in tasks)
                 {
-                    var success = await todoClient.CreateTaskAsync(tasks[i]);
+                    var success = await todoClient.CreateTaskAsync(task);
                     if (success)
                     {
-                        unregistered[i].Registered = true;
+                        assignment.Registered = true;
                         newCount++;
                     }
                 }
