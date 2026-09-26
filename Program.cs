@@ -27,11 +27,25 @@ class Program
             .WithEnvFiles(Path.Combine(baseDir, ".env"))
             .WithOverwriteExistingVars());
 
+        var envFilePath = Path.Combine(baseDir, ".env");
+        if (File.Exists(envFilePath))
+        {
+            var envVersion = EnvConfig.DetectVersion(await File.ReadAllLinesAsync(envFilePath));
+            if (envVersion < EnvConfig.CurrentVersion)
+                Logger.Info($"Warning: .env is outdated (config v{envVersion}, current v{EnvConfig.CurrentVersion}). Run with --init to update.");
+        }
+
         var moodleUrl = Environment.GetEnvironmentVariable("MOODLE_URL") ?? "https://moodle41.lms.ehime-u.ac.jp/moodle";
         var moodleUsername = Environment.GetEnvironmentVariable("MOODLE_USERNAME") ?? "";
         var moodlePassword = Environment.GetEnvironmentVariable("MOODLE_PASSWORD") ?? "";
         var todoCliPath = Environment.GetEnvironmentVariable("TODO_CLI_PATH") ?? @".\Todo\todo.exe";
         var todoListName = Environment.GetEnvironmentVariable("TODO_LIST_NAME") ?? "Univ";
+        var dueCutoffHour = ParseCutoffHour(Environment.GetEnvironmentVariable("DUE_CUTOFF_HOUR"));
+        var titleWhitelist = ParseList(Environment.GetEnvironmentVariable("TITLE_WHITELIST"));
+        var blacklistEnv = Environment.GetEnvironmentVariable("TITLE_BLACKLIST");
+        var titleBlacklist = blacklistEnv == null
+            ? EnvConfig.DefaultBlacklist.ToList()
+            : ParseList(blacklistEnv);
 
         if (string.IsNullOrWhiteSpace(moodleUsername) || string.IsNullOrWhiteSpace(moodlePassword))
         {
@@ -44,10 +58,19 @@ class Program
             todoCliPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), todoCliPath));
         }
 
+        if (!File.Exists(todoCliPath))
+        {
+            Logger.Error($"Error: todo.exe not found at '{todoCliPath}'. Place it in the Todo\\ folder or set TODO_CLI_PATH in .env");
+            return 1;
+        }
+
         Logger.Detail($"Todo CLI: {todoCliPath}");
         Logger.Detail($"Todo List: {todoListName}");
         Logger.Detail($"Moodle URL: {moodleUrl}");
         Logger.Detail($"Username: {moodleUsername}");
+        Logger.Detail($"Due cutoff hour: {dueCutoffHour}");
+        Logger.Detail($"Title whitelist: [{string.Join(", ", titleWhitelist)}]");
+        Logger.Detail($"Title blacklist: [{string.Join(", ", titleBlacklist)}]");
 
         try
         {
@@ -85,19 +108,19 @@ class Program
                     FetchedAt = currentData.FetchedAt
                 };
 
-                var transformer = new AssignmentTransformer();
+                var transformer = new AssignmentTransformer(dueCutoffHour, titleWhitelist, titleBlacklist);
                 Logger.Detail("Transforming unregistered assignments...");
                 var tasks = transformer.Transform(newData);
 
                 Logger.Detail($"Created {tasks.Count} tasks");
 
                 Logger.Detail("Creating tasks in Microsoft Todo...");
-                for (int i = 0; i < unregistered.Count; i++)
+                foreach (var (assignment, task) in tasks)
                 {
-                    var success = await todoClient.CreateTaskAsync(tasks[i]);
+                    var success = await todoClient.CreateTaskAsync(task);
                     if (success)
                     {
-                        unregistered[i].Registered = true;
+                        assignment.Registered = true;
                         newCount++;
                     }
                 }
@@ -121,6 +144,27 @@ class Program
         return 0;
     }
 
+    static int ParseCutoffHour(string? value)
+    {
+        const int defaultValue = 4;
+        if (string.IsNullOrWhiteSpace(value)) return defaultValue;
+
+        if (int.TryParse(value, out var hour) && hour >= 0 && hour <= 23)
+            return hour;
+
+        Logger.Error($"Warning: invalid DUE_CUTOFF_HOUR '{value}' (expected 0-23). Using default {defaultValue}.");
+        return defaultValue;
+    }
+
+    static List<string> ParseList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return [];
+
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+    }
+
     static string GetBaseDirectory()
     {
         var dir = AppContext.BaseDirectory;
@@ -133,22 +177,33 @@ class Program
     static async Task InitAsync()
     {
         var todoDir = Path.Combine(Directory.GetCurrentDirectory(), "Todo");
+        const string envPath = ".env";
 
-        if (!File.Exists(".env"))
+        if (!File.Exists(envPath))
         {
-            var template = @"# Moodle Importer Configuration
-MOODLE_URL=https://moodle41.lms.ehime-u.ac.jp/moodle
-MOODLE_USERNAME=your_username
-MOODLE_PASSWORD=your_password
-TODO_CLI_PATH=.\Todo\todo.exe
-TODO_LIST_NAME=Univ
-";
-            await File.WriteAllTextAsync(".env", template);
-            Logger.Info("Created .env template. Edit it with your credentials.");
+            await File.WriteAllTextAsync(envPath, EnvConfig.GenerateTemplate());
+            Logger.Info($"Created .env template (config v{EnvConfig.CurrentVersion}). Edit it with your credentials.");
         }
         else
         {
-            Logger.Info(".env already exists.");
+            var existing = await File.ReadAllTextAsync(envPath);
+            var result = EnvConfig.Migrate(existing);
+
+            if (!result.Changed)
+            {
+                Logger.Info($".env is up to date (config v{EnvConfig.CurrentVersion}).");
+            }
+            else
+            {
+                File.Copy(envPath, envPath + ".bak", overwrite: true);
+                await File.WriteAllTextAsync(envPath, result.Text);
+
+                Logger.Info($"Migrated .env from v{result.OldVersion} to v{EnvConfig.CurrentVersion} (backup: .env.bak)");
+                foreach (var key in result.AddedKeys)
+                    Logger.Info($"  + {key} (added with default value)");
+                foreach (var key in result.DeprecatedKeys)
+                    Logger.Info($"  - {key} (deprecated, commented out)");
+            }
         }
 
         if (!Directory.Exists(todoDir))

@@ -16,6 +16,7 @@ obj/
 
 # Env
 .env
+.env.bak
 *.local
 
 # Data

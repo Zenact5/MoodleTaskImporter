@@ -104,7 +104,29 @@ public class MoodleScraper
             }
         }
 
+        if (page.Url.Contains("/login/"))
+        {
+            Logger.Detail("Still on login page - trying direct Moodle login form...");
+            var userInput = page.Locator("input#username, input[name='username']");
+            var passInput = page.Locator("input#password, input[name='password']");
+
+            if (await userInput.CountAsync() > 0 && await passInput.CountAsync() > 0)
+            {
+                await userInput.First.FillAsync(_username);
+                await passInput.First.FillAsync(_password);
+                await page.Locator("button[type='submit'], input[type='submit']").First.ClickAsync();
+                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                await page.WaitForTimeoutAsync(3000);
+            }
+        }
+
         Logger.Detail($"Final URL: {page.Url}");
+
+        if (page.Url.Contains("/login/"))
+        {
+            throw new InvalidOperationException(
+                $"Moodle login failed (URL: {page.Url}). Check MOODLE_USERNAME / MOODLE_PASSWORD in .env");
+        }
     }
 
     private async Task ParseCalendarUpcomingAsync(IPage page, MoodleData data)
