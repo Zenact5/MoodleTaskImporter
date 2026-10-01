@@ -142,7 +142,7 @@ public class MoodleScraper
             var rawJson = await page.EvaluateAsync<string>(@"() => {
                 const containers = document.querySelectorAll('.event');
                 const events = [];
-                const seenIds = new Set();
+                const seen = new Set();
                 containers.forEach(el => {
                     const link = el.querySelector('a[href*=""mod/quiz/view.php""], a[href*=""mod/assign/view.php""]');
                     if (!link) return;
@@ -150,13 +150,18 @@ public class MoodleScraper
                     const idMatch = href.match(/id=(\d+)/);
                     if (!idMatch) return;
                     const id = idMatch[1];
-                    if (seenIds.has(id)) return;
-                    seenIds.add(id);
+
+                    const allText = el.textContent.replace(/\s+/g, ' ').trim();
+
+                    // Deduplicate identical DOM events without collapsing the
+                    // open/close pair of the same activity (they share the same id).
+                    const key = el.getAttribute('data-event-id') || (href + '|' + allText);
+                    if (seen.has(key)) return;
+                    seen.add(key);
 
                     const titleEl = el.querySelector('.card-title, .event-title, h5, h3');
                     const title = titleEl ? titleEl.textContent.replace(/\s+/g, ' ').trim() : '';
 
-                    const allText = el.textContent.replace(/\s+/g, ' ').trim();
                     events.push([id, title, allText, href]);
                 });
                 return JSON.stringify(events);
@@ -176,9 +181,11 @@ public class MoodleScraper
 
                 if (string.IsNullOrWhiteSpace(title))
                 {
-                    var dateMatch = Regex.Match(allText, @"\d{4}\s*年");
-                    if (dateMatch.Success)
-                        title = allText[..dateMatch.Index].Trim();
+                    // The event date is appended after the title, so use the last
+                    // year occurrence (the title itself may contain a year).
+                    var dateMatches = Regex.Matches(allText, @"\d{4}\s*年");
+                    if (dateMatches.Count > 0)
+                        title = allText[..dateMatches[^1].Index].Trim();
                 }
 
                 Logger.Detail($"Raw title: [{title}]");
@@ -186,6 +193,12 @@ public class MoodleScraper
                 if (string.IsNullOrWhiteSpace(title))
                 {
                     Logger.Detail($"  Skipped (cleaned title is empty)");
+                    continue;
+                }
+
+                if (data.Assignments.Any(a => a.Id == id))
+                {
+                    Logger.Detail($"  Skipped (duplicate id {id})");
                     continue;
                 }
 
