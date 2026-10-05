@@ -72,6 +72,8 @@ Action: Start a program
 Program: path\to\moodle-importer.exe
 ```
 
+> Note: A terminal window appears while running (by design). Select "Run whether user is logged on or not" in the task's properties to hide it.
+
 ## Build from Source
 
 ```sh
